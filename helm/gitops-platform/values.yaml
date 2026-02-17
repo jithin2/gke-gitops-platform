@@ -15,7 +15,7 @@ frontend:
   image: gitops/frontend
   tag: local
   port: 8080           # Container listens on this port
-  replicas: 1
+  replicas: 2
   resources:
     requests:
       cpu: 25m
