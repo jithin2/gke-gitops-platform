@@ -49,3 +49,6 @@ docker-compose.override.yml
 
 # Node (if any tooling uses it)
 node_modules/
+
+# Personal study notes (keep private)
+docs/INTERVIEW-QUESTIONS.md
