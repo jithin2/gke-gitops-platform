@@ -1,0 +1,56 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: gitops-platform
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: "GitOps Platform microservices project"
+
+  # Source repositories allowed
+  sourceRepos:
+    - "https://github.com/YOUR_ORG/gke-gitops-platform.git"
+
+  # Destination clusters and namespaces
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: dev
+    - server: https://kubernetes.default.svc
+      namespace: staging
+    - server: https://kubernetes.default.svc
+      namespace: production
+
+  # Allowed K8s resource types
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: "*"
+    - group: apps
+      kind: "*"
+    - group: autoscaling
+      kind: "*"
+    - group: networking.k8s.io
+      kind: "*"
+    - group: policy
+      kind: "*"
+
+  # RBAC roles for the project
+  roles:
+    - name: admin
+      description: "Full access to project"
+      policies:
+        - p, proj:gitops-platform:admin, applications, *, gitops-platform/*, allow
+      groups:
+        - platform-admins
+
+    - name: developer
+      description: "Read-only + sync access"
+      policies:
+        - p, proj:gitops-platform:developer, applications, get, gitops-platform/*, allow
+        - p, proj:gitops-platform:developer, applications, sync, gitops-platform/*, allow
+      groups:
+        - developers

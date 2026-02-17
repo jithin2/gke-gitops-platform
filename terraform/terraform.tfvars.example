@@ -1,0 +1,18 @@
+project_id        = "my-gcp-project-id"
+region            = "us-central1"
+zone              = "us-central1-a"
+cluster_name      = "gitops-platform"
+environment       = "dev"
+node_count        = 2
+node_machine_type = "e2-standard-4"
+min_node_count    = 1
+max_node_count    = 5
+
+master_authorized_networks = [
+  {
+    cidr_block   = "0.0.0.0/0"
+    display_name = "All (restrict in production)"
+  }
+]
+
+enable_private_nodes = true

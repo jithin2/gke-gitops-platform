@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  labels:
+    app: order-service
+    tier: backend
+spec:
+  replicas: {{ .Values.orderService.replicas }}
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+        tier: backend
+    spec:
+      containers:
+        - name: order-service
+          image: "{{ .Values.orderService.image }}:{{ .Values.orderService.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.orderService.port }}
+          env:
+            - name: PORT
+              value: "{{ .Values.orderService.port }}"
+            - name: PRODUCT_SERVICE_URL
+              value: "http://product-service:{{ .Values.productService.port }}"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          resources:
+            {{- toYaml .Values.orderService.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.orderService.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.orderService.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10

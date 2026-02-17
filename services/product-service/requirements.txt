@@ -1,0 +1,4 @@
+# No external dependencies — using stdlib only
+# In production, you'd add:
+# google-cloud-storage==2.14.0
+# google-cloud-firestore==2.14.0

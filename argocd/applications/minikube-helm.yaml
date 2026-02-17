@@ -1,0 +1,33 @@
+# ArgoCD Application for Minikube — uses the Helm chart
+# ArgoCD watches this repo on GitHub and auto-syncs changes to your cluster
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-dev
+  namespace: argocd
+  labels:
+    environment: minikube
+spec:
+  project: default
+
+  source:
+    # REPLACE with your actual GitHub repo URL
+    repoURL: https://github.com/jithin2/gke-gitops-platform.git
+    targetRevision: main
+    path: helm/gitops-platform
+
+    # Tell ArgoCD this is a Helm chart (not plain YAML or Kustomize)
+    helm:
+      valueFiles:
+        - values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: dev
+
+  syncPolicy:
+    automated:
+      prune: true       # Delete resources removed from Git
+      selfHeal: true    # Revert manual kubectl changes
+    syncOptions:
+      - CreateNamespace=true

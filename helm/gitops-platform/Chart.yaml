@@ -1,0 +1,6 @@
+apiVersion: v2
+name: gitops-platform
+description: A microservices platform with frontend (Go) and backend services (Python)
+type: application
+version: 0.1.0      # Chart version (changes when you modify the chart itself)
+appVersion: "1.0.0"  # App version (changes when your application code changes)

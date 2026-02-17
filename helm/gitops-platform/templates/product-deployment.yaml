@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+  labels:
+    app: product-service
+    tier: backend
+spec:
+  replicas: {{ .Values.productService.replicas }}
+  selector:
+    matchLabels:
+      app: product-service
+  template:
+    metadata:
+      labels:
+        app: product-service
+        tier: backend
+    spec:
+      containers:
+        - name: product-service
+          image: "{{ .Values.productService.image }}:{{ .Values.productService.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.productService.port }}
+          env:
+            - name: PORT
+              value: "{{ .Values.productService.port }}"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          resources:
+            {{- toYaml .Values.productService.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.productService.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.productService.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10

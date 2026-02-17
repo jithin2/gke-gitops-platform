@@ -1,0 +1,51 @@
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfvars
+terraform/.terraform.lock.hcl
+crash.log
+
+# IDE & Tools
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets (never commit these)
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*.json
+service-account*.json
+kubeconfig
+kubeconfig.yaml
+.env
+.env.*
+
+# Build artifacts
+services/frontend/frontend
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+vendor/
+
+# Helm
+helm/gitops-platform/charts/
+*.tgz
+
+# Docker
+docker-compose.override.yml
+
+# Node (if any tooling uses it)
+node_modules/

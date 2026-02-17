@@ -1,0 +1,61 @@
+# ============================================================
+# GLOBAL SETTINGS
+# These apply to all services unless overridden below
+# ============================================================
+global:
+  # "Never" = use images already in Minikube's Docker daemon
+  # "Always" = pull from a remote registry (for cloud deployments)
+  imagePullPolicy: Never
+
+# ============================================================
+# FRONTEND SERVICE (Go)
+# The entry point for users — proxies requests to backends
+# ============================================================
+frontend:
+  image: gitops/frontend
+  tag: local
+  port: 8080           # Container listens on this port
+  replicas: 1
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+  # NodePort exposes the service on your laptop via minikube IP
+  nodePort: 30088
+
+# ============================================================
+# ORDER SERVICE (Python)
+# Handles order creation and retrieval
+# ============================================================
+orderService:
+  image: gitops/order-service
+  tag: local
+  port: 8081
+  replicas: 1
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+# ============================================================
+# PRODUCT SERVICE (Python)
+# Serves the product catalog
+# ============================================================
+productService:
+  image: gitops/product-service
+  tag: local
+  port: 8082
+  replicas: 1
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

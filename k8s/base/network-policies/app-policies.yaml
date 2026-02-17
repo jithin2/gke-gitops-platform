@@ -1,0 +1,88 @@
+# Frontend: receives ingress traffic, talks to order-service and product-service
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - port: 8080
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: order-service
+      ports:
+        - port: 8081
+    - to:
+        - podSelector:
+            matchLabels:
+              app: product-service
+      ports:
+        - port: 8082
+---
+# Order Service: receives traffic from frontend, talks to product-service and external APIs
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: order-service-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: order-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - port: 8081
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: product-service
+      ports:
+        - port: 8082
+    # Allow egress to GCP APIs (metadata server + internet for Pub/Sub)
+    - to: []
+      ports:
+        - port: 443
+        - port: 80
+---
+# Product Service: receives traffic from frontend and order-service
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: product-service-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: product-service
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+        - podSelector:
+            matchLabels:
+              app: order-service
+      ports:
+        - port: 8082
+  egress:
+    # Allow egress to GCP APIs (GCS)
+    - to: []
+      ports:
+        - port: 443

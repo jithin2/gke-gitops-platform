@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+    tier: web
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        tier: web
+    spec:
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image }}:{{ .Values.frontend.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.frontend.port }}
+          env:
+            - name: ORDER_SERVICE_URL
+              value: "http://order-service:{{ .Values.orderService.port }}"
+            - name: PRODUCT_SERVICE_URL
+              value: "http://product-service:{{ .Values.productService.port }}"
+            - name: PORT
+              value: "{{ .Values.frontend.port }}"
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+          # Liveness = "is this container alive?" If it fails, K8s restarts it
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.frontend.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          # Readiness = "can this container handle traffic?" If it fails, K8s stops sending requests
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.frontend.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
