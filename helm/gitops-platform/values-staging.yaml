@@ -1,0 +1,10 @@
+# Staging overrides — only what's different from values.yaml
+frontend:
+  replicas: 2
+  nodePort: 30089      # different port (30088 is already used by dev)
+
+orderService:
+  replicas: 2
+
+productService:
+  replicas: 2

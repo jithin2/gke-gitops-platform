@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-staging        # 1. different name
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/jithin2/gke-gitops-platform.git
+    targetRevision: main
+    path: helm/gitops-platform
+    helm:
+      valueFiles:
+        - values.yaml
+        - values-staging.yaml   # 2. add staging values on top
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: staging          # 3. different namespace
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true    # 4. ArgoCD creates 'staging' namespace automatically
