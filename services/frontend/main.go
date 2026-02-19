@@ -135,6 +135,10 @@ func main() {
 	mux.HandleFunc("/healthz", healthzHandler)
 	mux.HandleFunc("/readyz", readyzHandler)
 	mux.HandleFunc("/status", statusHandler)
+	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"version": "1.1.0", "service": "frontend"}`)
+	})
 	mux.HandleFunc("/api/orders/", proxyHandler(orderServiceURL))
 	mux.HandleFunc("/api/products/", proxyHandler(productServiceURL))
 
