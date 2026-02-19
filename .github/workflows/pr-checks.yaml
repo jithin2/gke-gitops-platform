@@ -1,0 +1,118 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+
+  # ── CHECK 1: Go code style ──────────────────────────────────
+  lint-go:
+    name: Lint Go (frontend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true          # caches go modules — faster on repeat runs
+
+      - name: go vet (checks for bugs)
+        working-directory: services/frontend
+        run: go vet ./...
+
+      - name: gofmt (checks formatting)
+        working-directory: services/frontend
+        run: |
+          if [ "$(gofmt -l . | wc -l)" -gt 0 ]; then
+            echo "These files need formatting:"
+            gofmt -l .
+            exit 1
+          fi
+
+  # ── CHECK 2: Python code style ──────────────────────────────
+  lint-python:
+    name: Lint Python (order + product)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install flake8
+        run: pip install flake8
+
+      - name: Lint order-service
+        run: flake8 services/order-service/main.py --max-line-length=120
+
+      - name: Lint product-service
+        run: flake8 services/product-service/main.py --max-line-length=120
+
+  # ── CHECK 3: Docker images build successfully ─────────────
+  build-images:
+    name: Build Docker images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: services/frontend
+          push: false          # on PRs we build but do NOT push
+          tags: frontend:test
+
+      - name: Build order-service
+        uses: docker/build-push-action@v5
+        with:
+          context: services/order-service
+          push: false
+          tags: order-service:test
+
+      - name: Build product-service
+        uses: docker/build-push-action@v5
+        with:
+          context: services/product-service
+          push: false
+          tags: product-service:test
+
+  # ── CHECK 4: Security scan ───────────────────────────────
+  security-scan:
+    name: Security scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: build-images        # runs AFTER build-images succeeds
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image for scanning
+        run: docker build -t scan-target services/frontend
+
+      - name: Scan with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: scan-target
+          format: table
+          exit-code: '0'       # '0' = warn only. Change to '1' to block on HIGH vulns
+          severity: HIGH,CRITICAL
+
+  # ── CHECK 5: Helm chart is valid ─────────────────────────
+  validate-helm:
+    name: Validate Helm chart
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: helm lint
+        run: helm lint helm/gitops-platform
+
+      - name: helm template (dry run)
+        run: helm template platform helm/gitops-platform
+
