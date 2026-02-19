@@ -1,0 +1,223 @@
+# ============================================================
+# CI Pipeline: Build & Push Docker Images to GitHub Container Registry
+# ============================================================
+# WHAT IT DOES:
+#   1. Detects which service(s) changed (frontend, order-service, product-service)
+#   2. Builds only the changed service's Docker image
+#   3. Pushes the image to ghcr.io (GitHub Container Registry — free)
+#   4. Updates the image tag in values.yaml and commits back to the repo
+#
+# WHY:
+#   This is the "CI" half of CI/CD. ArgoCD handles the "CD" half.
+#   Push code → CI builds image → CI updates values.yaml → ArgoCD deploys.
+# ============================================================
+
+name: CI — Build & Push Images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Only run when service code changes (not docs, labs, etc.)
+      - "services/**"
+
+# Required for pushing images to ghcr.io
+permissions:
+  contents: write    # To commit updated image tags back to repo
+  packages: write    # To push Docker images to GHCR
+
+env:
+  REGISTRY: ghcr.io
+  # IMAGE_PREFIX will be like: ghcr.io/jithin2/gke-gitops-platform
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/gke-gitops-platform
+
+jobs:
+  # ====================
+  # Step 1: Figure out what changed
+  # ====================
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      order-service: ${{ steps.filter.outputs.order-service }}
+      product-service: ${{ steps.filter.outputs.product-service }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'services/frontend/**'
+            order-service:
+              - 'services/order-service/**'
+            product-service:
+              - 'services/product-service/**'
+
+  # ====================
+  # Step 2: Build & push changed images
+  # ====================
+  build-and-push:
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    # Only run if at least one service changed
+    if: |
+      needs.detect-changes.outputs.frontend == 'true' ||
+      needs.detect-changes.outputs.order-service == 'true' ||
+      needs.detect-changes.outputs.product-service == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Login to GitHub Container Registry using the built-in GITHUB_TOKEN
+      # No secrets to configure — this works out of the box!
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Set up Docker Buildx for better caching
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Generate a short SHA for the image tag (e.g., "abc1234")
+      - name: Generate image tag
+        id: tag
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      # --- Frontend ---
+      - name: Build & push frontend
+        if: needs.detect-changes.outputs.frontend == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: services/frontend
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/frontend:${{ steps.tag.outputs.sha_short }}
+            ${{ env.IMAGE_PREFIX }}/frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- Order Service ---
+      - name: Build & push order-service
+        if: needs.detect-changes.outputs.order-service == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: services/order-service
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/order-service:${{ steps.tag.outputs.sha_short }}
+            ${{ env.IMAGE_PREFIX }}/order-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # --- Product Service ---
+      - name: Build & push product-service
+        if: needs.detect-changes.outputs.product-service == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: services/product-service
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/product-service:${{ steps.tag.outputs.sha_short }}
+            ${{ env.IMAGE_PREFIX }}/product-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ====================
+  # Step 3: Update image tags in values.yaml (GitOps!)
+  # ====================
+  update-manifests:
+    needs: [detect-changes, build-and-push]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Need to fetch with a token that can push back
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image tag
+        id: tag
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Update values.yaml with new image references
+      # This is the "glue" between CI and CD:
+      #   CI builds the image → updates values.yaml → pushes to Git → ArgoCD sees the change → deploys
+      - name: Update Helm values with new image tags
+        run: |
+          VALUES_FILE="helm/gitops-platform/values.yaml"
+
+          # For cloud deployment, we need a separate values file
+          # that uses GHCR images instead of local ones
+          CLOUD_VALUES="helm/gitops-platform/values-ghcr.yaml"
+
+          # Create/update the GHCR values file
+          cat > "$CLOUD_VALUES" << 'HEADER'
+          # ============================================================
+          # GHCR IMAGE OVERRIDES (auto-updated by CI pipeline)
+          # ============================================================
+          # Use this file when deploying from GHCR instead of local images:
+          #   helm install platform helm/gitops-platform -f helm/gitops-platform/values-ghcr.yaml
+          #
+          # For ArgoCD, add this to your Application's helm.valueFiles:
+          #   valueFiles:
+          #     - values.yaml
+          #     - values-ghcr.yaml
+          # ============================================================
+          global:
+            imagePullPolicy: Always
+          HEADER
+
+          TAG="${{ steps.tag.outputs.sha_short }}"
+          PREFIX="${{ env.IMAGE_PREFIX }}"
+
+          # Append image overrides based on what was built
+          if [ "${{ needs.detect-changes.outputs.frontend }}" == "true" ]; then
+            cat >> "$CLOUD_VALUES" << EOF
+
+          frontend:
+            image: ${PREFIX}/frontend
+            tag: "${TAG}"
+          EOF
+            echo "Updated frontend image to ${PREFIX}/frontend:${TAG}"
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.order-service }}" == "true" ]; then
+            cat >> "$CLOUD_VALUES" << EOF
+
+          orderService:
+            image: ${PREFIX}/order-service
+            tag: "${TAG}"
+          EOF
+            echo "Updated order-service image to ${PREFIX}/order-service:${TAG}"
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.product-service }}" == "true" ]; then
+            cat >> "$CLOUD_VALUES" << EOF
+
+          productService:
+            image: ${PREFIX}/product-service
+            tag: "${TAG}"
+          EOF
+            echo "Updated product-service image to ${PREFIX}/product-service:${TAG}"
+          fi
+
+      # Commit and push the updated values back to the repo
+      - name: Commit updated image tags
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add helm/gitops-platform/values-ghcr.yaml
+
+          # Only commit if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "ci: update image tags to ${{ steps.tag.outputs.sha_short }} [skip ci]"
+            git push
+          fi
