@@ -1,0 +1,17 @@
+# ============================================================
+# GHCR IMAGE OVERRIDES (auto-updated by CI pipeline)
+# ============================================================
+# Use this file when deploying from GHCR instead of local images:
+#   helm install platform helm/gitops-platform -f helm/gitops-platform/values-ghcr.yaml
+#
+# For ArgoCD, add this to your Application's helm.valueFiles:
+#   valueFiles:
+#     - values.yaml
+#     - values-ghcr.yaml
+# ============================================================
+global:
+  imagePullPolicy: Always
+
+frontend:
+  image: ghcr.io/jithin2/gke-gitops-platform/frontend
+  tag: "5222af2"
