@@ -1,3 +1,4 @@
+# Edit services/order-service/main.py — add a comment at the top of the file describing the service's purpose and functionality.
 """Order Service — handles order creation and retrieval."""
 
 import os
