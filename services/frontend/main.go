@@ -8,6 +8,10 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
@@ -15,6 +19,25 @@ var (
 	productServiceURL = getEnv("PRODUCT_SERVICE_URL", "http://product-service:8082")
 	port              = getEnv("PORT", "8080")
 	httpClient        = &http.Client{Timeout: 5 * time.Second}
+)
+
+var (
+	requestsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "frontend_requests_total",
+			Help: "Total number of HTTP requests",
+		},
+		[]string{"method", "path", "status"},
+	)
+
+	requestDuration = promauto.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "frontend_request_duration_seconds",
+			Help:    "HTTP request duration in seconds",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"method", "path"},
+	)
 )
 
 func getEnv(key, fallback string) string {
@@ -131,6 +154,7 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	mux := http.NewServeMux()
 
+	mux.Handle("/metrics", promhttp.Handler())
 	mux.HandleFunc("/", rootHandler)
 	mux.HandleFunc("/healthz", healthzHandler)
 	mux.HandleFunc("/readyz", readyzHandler)
