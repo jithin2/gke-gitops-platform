@@ -15,7 +15,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.23'
           cache: true          # caches go modules — faster on repeat runs
 
       - name: go vet (checks for bugs)
