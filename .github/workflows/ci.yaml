@@ -23,8 +23,9 @@ on:
 
 # Required for pushing images to ghcr.io
 permissions:
-  contents: write    # To commit updated image tags back to repo
-  packages: write    # To push Docker images to GHCR
+  contents: write       # To commit updated image tags back to repo
+  packages: write       # To push Docker images to GHCR
+  pull-requests: write  # To open PRs for image tag updates
 
 env:
   REGISTRY: ghcr.io
@@ -206,18 +207,34 @@ jobs:
             echo "Updated product-service image to ${PREFIX}/product-service:${TAG}"
           fi
 
-      # Commit and push the updated values back to the repo
-      - name: Commit updated image tags
+      # Push changes to a dedicated branch and open a PR (respects branch protection on main)
+      - name: Open PR with updated image tags
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          BRANCH="gitops/image-updates-${{ steps.tag.outputs.sha_short }}"
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
+          git checkout -b "$BRANCH"
           git add helm/gitops-platform/values-ghcr.yaml
 
-          # Only commit if there are changes
+          # Only proceed if there are actual changes
           if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "ci: update image tags to ${{ steps.tag.outputs.sha_short }} [skip ci]"
-            git push
+            echo "No changes to commit — skipping PR"
+            exit 0
           fi
+
+          git commit -m "ci: update image tags to ${{ steps.tag.outputs.sha_short }}"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --title "ci: update image tags to ${{ steps.tag.outputs.sha_short }}" \
+            --body "Automated image tag update from CI pipeline.
+
+          **Triggered by:** \`${{ github.sha }}\`
+          **Images updated:** based on changed services in this push.
+
+          Merge this PR to deploy the new images via ArgoCD." \
+            --base main \
+            --head "$BRANCH"
