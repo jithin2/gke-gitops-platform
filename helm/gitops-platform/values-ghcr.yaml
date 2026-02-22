@@ -12,6 +12,6 @@
 global:
   imagePullPolicy: Always
 
-frontend:
-  image: ghcr.io/jithin2/gke-gitops-platform/frontend
-  tag: "5222af2"
+orderService:
+  image: ghcr.io/jithin2/gke-gitops-platform/order-service
+  tag: "562302f"
